@@ -1,6 +1,7 @@
 import React, { Component } from 'react';
 import logo from './logo.svg';
 import './App.css';
+import queryString from'query-string';
 
 let defaultTextColor = '#fff';
 let defaultStyle = {
@@ -17,29 +18,6 @@ let fakeServerData = {
           {name: 'You\'ve never give me your money', duration: 1236},
           {name: 'Sound of silence', duration: 70000}
         ]
-      },
-      {
-        name: 'Discover Weekly',
-        songs: [
-          {name:'Roll over Beethoven', duration: 1345}, 
-          {name: 'I\'m so keked', duration: 1236},
-          {name: 'Eminence front', duration: 70000}] 
-      },
-      {
-        name: 'Top rap songs',
-        songs: [
-          {name: 'Poop', duration: 1345}, 
-          {name: 'Piss', duration: 1236}, 
-          {name: 'I\'m so down', duration: 70000}
-        ] 
-      },
-      {
-        name: 'Classic',
-        songs: [
-          {name: 'Stairway to heaven', duration: 1345}, 
-          {name: 'Smoke on the water', duration: 1236}, 
-          {name: 'When the levee breaks', duration: 70000}
-        ] 
       }
     ]
   }
@@ -89,7 +67,7 @@ class Playlist extends Component {
     let playlist = this.props.playlist;
     return (
       <div style={{...defaultStyle, display: "inline-block", width: '25%'}}>
-        <img/>
+        <img src={playlist.imageUrl} style = {{width: '60px'}}/>
         <h3>{playlist.name}</h3>
         <ul>
           {playlist.songs.map(song => 
@@ -110,23 +88,46 @@ class App extends Component {
   };
   }
   componentDidMount () {
-    setTimeout(() => {
-      this.setState({serverData: fakeServerData});
-  }, 1000);
+    let parsed = queryString.parse(window.location.search);
+    let accessToken = parsed.access_token;
+    if (!accessToken)
+      return; 
+    fetch('https://api.spotify.com/v1/me', {
+      headers: {'Authorization': 'Bearer '+ accessToken}
+    }).then(response => response.json())
+      .then(data => this.setState({
+        user: {
+          name: data.display_name
+        }
+      }));
+
+    fetch('https://api.spotify.com/v1/me/playlists', {
+      headers: {'Authorization': 'Bearer '+ accessToken}
+    }).then(response => response.json())
+      .then(data => this.setState({
+        playlists: data.items.map(item => {
+          return {
+            name: item.name,
+            imageUrl: item.images[0].url,
+            songs: []
+        }
+      })
+      }));
   }
   render() {
-    let playlistsToRender = this.state.serverData.user ? this.state.serverData.user.playlists
-      .filter(playlist =>
-      playlist.name.toLowerCase().includes(
-        this.state.filterString.toLowerCase())
-    ) : [];
+    let playlistsToRender = 
+        this.state.user && 
+        this.state.playlists
+          ? this.state.playlists.filter(playlist =>
+            playlist.name.toLowerCase().includes(
+              this.state.filterString.toLowerCase())) 
+          : [];
     return (
       <div className="App">
-      {this.state.serverData.user ?
+      {this.state.user ?
         <div>
-        {this.state.serverData.user &&
-        <h1>{this.state.serverData.user.name}'s playlist
-        </h1>}
+        <h1>{this.state.user.name}'s playlist
+        </h1>
           <PlaylistCounter playlists = {playlistsToRender}/>
           <HoursCounter playlists = {playlistsToRender}/>
           <Filter onTextChange = {text => {
@@ -135,8 +136,13 @@ class App extends Component {
           {playlistsToRender.map(playlist => 
             <Playlist playlist = {playlist}/>
           )}
-          </div> : <h1 style = {defaultStyle}>Loading...</h1>
-          }
+          </div> : <button onClick = {() => {
+            window.location = window.location.href.includes('localhost') 
+              ? 'http://localhost:8888/login' 
+              : 'https://agams-app-backend.kerokuapp.com/login'
+            }}
+          style ={{padding: '20px', 'font-size': '50px', 'margin-top': '20px'}}>Sign in with Spotify</button>
+      }
       </div>
     );
   }
